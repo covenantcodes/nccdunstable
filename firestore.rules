@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function validContent() {
+      return request.resource.data.keys().hasAll(['title', 'description', 'createdAt'])
+        && request.resource.data.keys().hasOnly([
+          'title', 'description', 'date', 'speaker', 'imageUrl', 'createdAt'
+        ])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 5000
+        && request.resource.data.createdAt is timestamp
+        && (!('date' in request.resource.data) || request.resource.data.date is string)
+        && (!('speaker' in request.resource.data) || request.resource.data.speaker is string)
+        && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl is string);
+    }
+
+    function validMessage() {
+      return request.resource.data.keys().hasAll([
+          'name', 'email', 'subject', 'message', 'createdAt', 'status'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'name', 'email', 'subject', 'message', 'createdAt', 'status'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() > 0
+        && request.resource.data.subject.size() <= 160
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 10
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'new';
+    }
+
+    function validDonationIntention() {
+      return request.resource.data.keys().hasAll([
+          'amount', 'currency', 'name', 'email', 'note', 'status', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'amount', 'currency', 'name', 'email', 'note', 'status', 'createdAt'
+        ])
+        && request.resource.data.amount is number
+        && request.resource.data.amount >= 1
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.currency == 'GBP'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 2000
+        && request.resource.data.status == 'pledge-recorded-no-payment'
+        && request.resource.data.createdAt == request.time;
+    }
+
+    // Admin membership is provisioned manually in the Firebase Console.
+    // A user may read their own membership record, but nobody can write one
+    // through the client application.
+    match /admins/{userId} {
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
+    }
+
+    // These collections are public website content. Only approved admins can
+    // create, edit, or remove entries.
+    match /{contentCollection}/{contentId} {
+      allow read: if contentCollection in ['sermons', 'events', 'ministries'];
+      allow create, update: if contentCollection in ['sermons', 'events', 'ministries']
+        && isAdmin()
+        && validContent();
+      allow delete: if contentCollection in ['sermons', 'events', 'ministries']
+        && isAdmin();
+    }
+
+    // Visitors can submit forms but cannot read or change submissions.
+    match /messages/{messageId} {
+      allow create: if validMessage();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /donations/{donationId} {
+      allow create: if validDonationIntention();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // All other collections are closed by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

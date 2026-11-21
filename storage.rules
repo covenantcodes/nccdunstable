@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && firestore.exists(
+          /databases/(default)/documents/admins/$(request.auth.uid)
+        );
+    }
+
+    match /{collection}/{fileName} {
+      allow read: if collection in ['sermons', 'events', 'ministries'];
+      allow write: if collection in ['sermons', 'events', 'ministries']
+        && isAdmin()
+        && (request.resource == null
+          || (request.resource.size < 10 * 1024 * 1024
+            && request.resource.contentType.matches('image/.*')));
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
