@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { youtubeEmbedUrl } from "../lib/youtube";
 import { SplitText } from "../components/SplitText";
 import { Link } from "react-router-dom";
@@ -356,6 +356,124 @@ type RecordItem = {
   weekday?: number;
   weekOfMonth?: number;
 };
+function formatDate(value?: string) {
+  if (!value) return "";
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+}
+function RecordCard({
+  item,
+  Icon,
+  showIcon,
+}: {
+  item: RecordItem;
+  Icon: IconComponent;
+  showIcon: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const video = youtubeEmbedUrl(item.videoUrl);
+  const flyer = !video && item.imageUrl;
+  const text = item.description ?? "";
+  const long = text.length > 220 || text.split("\n").length > 4;
+  return (
+    <article className={`feature-card${flyer ? " has-flyer" : ""}`}>
+      {video ? (
+        <div className="video-embed">
+          <iframe
+            src={video}
+            title={item.title || "Sermon video"}
+            loading="lazy"
+            allow="encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      ) : (
+        flyer && (
+          <a
+            className="record-media"
+            href={item.imageUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`View ${item.title || "image"} full size`}
+          >
+            <img className="record-image" src={item.imageUrl} alt="" />
+          </a>
+        )
+      )}
+      <div className="record-body">
+        {showIcon && <Icon size={25} />}
+        <h3>{item.title || "Untitled"}</h3>
+        {isRecurring(item) ? (
+          <>
+            <small>
+              <b>{describeRecurrence(item)}</b>
+              {item.time && ` · ${formatTime(item.time)}`}
+            </small>
+            {nextOccurrence(item) && (
+              <small>Next: {formatDay(nextOccurrence(item)!)}</small>
+            )}
+          </>
+        ) : (
+          (item.date || item.time) && (
+            <small>
+              {[formatDate(item.date), formatTime(item.time)]
+                .filter(Boolean)
+                .join(" · ")}
+            </small>
+          )
+        )}
+        <p className={`record-description${expanded ? "" : " is-clamped"}`}>
+          {item.description}
+        </p>
+        {long && (
+          <button
+            type="button"
+            className="read-more"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Show less" : "Read more"}
+          </button>
+        )}
+        {item.speaker && <small>With {item.speaker}</small>}
+      </div>
+    </article>
+  );
+}
+const EVENTS_PAGE_SIZE = 60;
+
+function todayKey() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Recurring events never expire; one-off events move to Past the day after. */
+function splitEvents(items: RecordItem[]) {
+  const today = todayKey();
+  const upcoming: RecordItem[] = [];
+  const past: RecordItem[] = [];
+  for (const item of items) {
+    if (!isRecurring(item) && item.date && item.date < today) past.push(item);
+    else upcoming.push(item);
+  }
+  const when = (item: RecordItem) =>
+    (isRecurring(item)
+      ? nextOccurrence(item)?.getTime()
+      : item.date
+        ? new Date(`${item.date}T00:00:00`).getTime()
+        : undefined) ?? Infinity;
+  upcoming.sort((a, b) => when(a) - when(b));
+  past.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+  return { upcoming, past };
+}
+
 function CollectionPage({
   name,
   collectionName,
@@ -367,8 +485,20 @@ function CollectionPage({
   text: string;
   icon: IconComponent;
 }) {
+  const isEvents = collectionName === "events";
+  // Events are split into upcoming/past in the browser, so load a bigger
+  // page to keep both tabs reasonably complete.
   const { items, loading, loadingMore, hasMore, error, loadMore } =
-    usePagedCollection<RecordItem>(collectionName);
+    usePagedCollection<RecordItem>(
+      collectionName,
+      isEvents ? EVENTS_PAGE_SIZE : undefined,
+    );
+  const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
+  const { upcoming, past } = useMemo(
+    () => (isEvents ? splitEvents(items) : { upcoming: items, past: [] }),
+    [items, isEvents],
+  );
+  const shown = isEvents ? (tab === "upcoming" ? upcoming : past) : items;
   const state: "loading" | "ready" | "error" | "setup" = !firebaseConfigured
     ? "setup"
     : loading
@@ -397,6 +527,22 @@ function CollectionPage({
         {state === "error" && (
           <p className="state-error">We could not load this content: {error}</p>
         )}
+        {isEvents && state === "ready" && items.length > 0 && (
+          <div className="event-tabs" role="tablist" aria-label="Events">
+            {(["upcoming", "past"] as const).map((key) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                className={tab === key ? "is-active" : ""}
+                onClick={() => setTab(key)}
+              >
+                {key === "upcoming" ? "Upcoming" : "Past"}
+                <em>{key === "upcoming" ? upcoming.length : past.length}</em>
+              </button>
+            ))}
+          </div>
+        )}
         {state === "ready" && !items.length && (
           <div className="empty-state">
             <Icon size={28} />
@@ -407,67 +553,29 @@ function CollectionPage({
             </p>
           </div>
         )}
-        {items.length > 0 && (
+        {isEvents && state === "ready" && items.length > 0 && !shown.length && (
+          <div className="empty-state">
+            <Icon size={28} />
+            <h3>
+              {tab === "upcoming" ? "No upcoming events" : "No past events yet"}
+            </h3>
+            <p>
+              {tab === "upcoming"
+                ? "Check back soon, or look at our past events."
+                : "Events move here once their date has passed."}
+            </p>
+          </div>
+        )}
+        {shown.length > 0 && (
           <div className="feature-grid" data-stagger="up">
-            {items.map((item) => {
-              const video = youtubeEmbedUrl(item.videoUrl);
-              const flyer = !video && item.imageUrl;
-              return (
-                <article
-                  className={`feature-card${flyer ? " has-flyer" : ""}`}
-                  key={item.id}
-                >
-                  {video ? (
-                    <div className="video-embed">
-                      <iframe
-                        src={video}
-                        title={item.title || "Sermon video"}
-                        loading="lazy"
-                        allow="encrypted-media; picture-in-picture"
-                        allowFullScreen
-                      />
-                    </div>
-                  ) : (
-                    flyer && (
-                      <a
-                        className="record-media"
-                        href={item.imageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={`View ${item.title || "image"} full size`}
-                      >
-                        <img className="record-image" src={item.imageUrl} alt="" />
-                      </a>
-                    )
-                  )}
-                  <div className="record-body">
-                    {collectionName !== "events" && <Icon size={25} />}
-                    <h3>{item.title || "Untitled"}</h3>
-                    {isRecurring(item) ? (
-                      <>
-                        <small>
-                          <b>{describeRecurrence(item)}</b>
-                          {item.time && ` · ${formatTime(item.time)}`}
-                        </small>
-                        {nextOccurrence(item) && (
-                          <small>Next: {formatDay(nextOccurrence(item)!)}</small>
-                        )}
-                      </>
-                    ) : (
-                      (item.date || item.time) && (
-                        <small>
-                          {[item.date, formatTime(item.time)]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      )
-                    )}
-                    <p className="record-description">{item.description}</p>
-                    {item.speaker && <small>With {item.speaker}</small>}
-                  </div>
-                </article>
-              );
-            })}
+            {shown.map((item) => (
+              <RecordCard
+                key={item.id}
+                item={item}
+                Icon={Icon}
+                showIcon={collectionName !== "events"}
+              />
+            ))}
           </div>
         )}
         {state === "ready" && error && (

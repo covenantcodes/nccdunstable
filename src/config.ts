@@ -2,7 +2,8 @@ export const church = {
   name: "New Covenant Church Dunstable",
   shortName: "NCC Dunstable",
   location: "Dunstable, Bedfordshire",
-  address: "Formerly Methodist Church, Totternhoe Road, Eaton Bray, Dunstable LU6 2BD",
+  address:
+    "New Covenant Church, Totternhoe Road, Eaton Bray, Dunstable LU6 2BD",
   phone: "07776302392",
   email: "nccdunstable@gmail.com",
   Sunday: "10:00 AM",
