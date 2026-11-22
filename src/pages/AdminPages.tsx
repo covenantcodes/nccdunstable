@@ -618,16 +618,23 @@ function ContentEditor() {
           storage,
           `${type}/${crypto.randomUUID()}-${file.name}`,
         );
+        console.log("[save] uploading image", {
+          path: imageRef.fullPath,
+          size: file.size,
+          type: file.type,
+        });
         await uploadBytes(imageRef, file);
         imageUrl = await getDownloadURL(imageRef);
+        console.log("[save] image uploaded", imageUrl);
       }
       const content = {
         title: data.get("title"),
         description: data.get("description"),
         date: data.get("date"),
-        speaker: data.get("speaker"),
         imageUrl,
-        ...(type === "sermons" ? { videoUrl } : {}),
+        ...(type === "sermons"
+          ? { speaker: String(data.get("speaker") ?? ""), videoUrl }
+          : {}),
         ...(type === "events"
           ? eventScheduleFields(
               recurrence,
@@ -639,10 +646,20 @@ function ContentEditor() {
           : {}),
         createdAt: serverTimestamp(),
       };
+      console.log("[save] saving", { type, id: id ?? "(new)", content });
       if (id) await setDoc(doc(db, type, id), content, { merge: true });
-      else await addDoc(collection(db, type), content);
+      else {
+        const created = await addDoc(collection(db, type), content);
+        console.log("[save] created", created.path);
+      }
+      console.log("[save] success");
       navigate("/admin/dashboard");
     } catch (reason) {
+      console.error("[save] failed", {
+        code: (reason as { code?: string })?.code,
+        message: reason instanceof Error ? reason.message : reason,
+        reason,
+      });
       setError(
         reason instanceof Error ? reason.message : "Could not save this item.",
       );

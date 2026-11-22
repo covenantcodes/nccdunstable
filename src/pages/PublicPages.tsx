@@ -409,48 +409,65 @@ function CollectionPage({
         )}
         {items.length > 0 && (
           <div className="feature-grid" data-stagger="up">
-            {items.map((item) => (
-              <article className="feature-card" key={item.id}>
-                {youtubeEmbedUrl(item.videoUrl) ? (
-                  <div className="video-embed">
-                    <iframe
-                      src={youtubeEmbedUrl(item.videoUrl)!}
-                      title={item.title || "Sermon video"}
-                      loading="lazy"
-                      allow="encrypted-media; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                ) : (
-                  item.imageUrl && (
-                    <img className="record-image" src={item.imageUrl} alt="" />
-                  )
-                )}
-                <Icon size={25} />
-                <h3>{item.title || "Untitled"}</h3>
-                {isRecurring(item) ? (
-                  <>
-                    <small>
-                      <b>{describeRecurrence(item)}</b>
-                      {item.time && ` · ${formatTime(item.time)}`}
-                    </small>
-                    {nextOccurrence(item) && (
-                      <small>Next: {formatDay(nextOccurrence(item)!)}</small>
+            {items.map((item) => {
+              const video = youtubeEmbedUrl(item.videoUrl);
+              const flyer = !video && item.imageUrl;
+              return (
+                <article
+                  className={`feature-card${flyer ? " has-flyer" : ""}`}
+                  key={item.id}
+                >
+                  {video ? (
+                    <div className="video-embed">
+                      <iframe
+                        src={video}
+                        title={item.title || "Sermon video"}
+                        loading="lazy"
+                        allow="encrypted-media; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : (
+                    flyer && (
+                      <a
+                        className="record-media"
+                        href={item.imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`View ${item.title || "image"} full size`}
+                      >
+                        <img className="record-image" src={item.imageUrl} alt="" />
+                      </a>
+                    )
+                  )}
+                  <div className="record-body">
+                    {collectionName !== "events" && <Icon size={25} />}
+                    <h3>{item.title || "Untitled"}</h3>
+                    {isRecurring(item) ? (
+                      <>
+                        <small>
+                          <b>{describeRecurrence(item)}</b>
+                          {item.time && ` · ${formatTime(item.time)}`}
+                        </small>
+                        {nextOccurrence(item) && (
+                          <small>Next: {formatDay(nextOccurrence(item)!)}</small>
+                        )}
+                      </>
+                    ) : (
+                      (item.date || item.time) && (
+                        <small>
+                          {[item.date, formatTime(item.time)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
+                      )
                     )}
-                  </>
-                ) : (
-                  (item.date || item.time) && (
-                    <small>
-                      {[item.date, formatTime(item.time)]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </small>
-                  )
-                )}
-                <p>{item.description}</p>
-                {item.speaker && <small>With {item.speaker}</small>}
-              </article>
-            ))}
+                    <p className="record-description">{item.description}</p>
+                    {item.speaker && <small>With {item.speaker}</small>}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
         {state === "ready" && error && (

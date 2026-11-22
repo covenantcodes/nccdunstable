@@ -821,12 +821,15 @@ h2 em {
   width: calc(100% + 64px);
   max-width: none;
   margin: -32px -32px 24px;
+}
+.feature-card > .video-embed {
   aspect-ratio: 16 / 9;
 }
+/* Show flyers and photos in full, whatever their shape. */
 .record-image {
   height: auto;
-  object-fit: cover;
   display: block;
+  object-fit: contain;
 }
 .feature-card > .video-embed {
   border-radius: 0;
@@ -1951,7 +1954,7 @@ button.dash-stat:hover {
   transition: transform 1s var(--ease);
 }
 .feature-card:hover .record-image {
-  transform: scale(1.05);
+  transform: none;
 }
 .feature-arrow {
   transition: transform 0.5s var(--ease);
@@ -2052,5 +2055,54 @@ html.lenis body {
   }
   [data-rv] {
     opacity: 1 !important;
+  }
+}
+
+/* Cards with a flyer/photo: image beside the text, full width of the grid. */
+.feature-card .record-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.feature-card .record-body > svg {
+  color: var(--purple);
+  margin-bottom: 16px;
+}
+.record-description {
+  white-space: pre-line;
+}
+.feature-card.has-flyer {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr;
+  align-items: start;
+  padding: 0;
+  min-height: 0;
+}
+.feature-card.has-flyer .record-media {
+  display: block;
+  background: #14110c;
+}
+.feature-card.has-flyer .record-image {
+  width: 100%;
+  margin: 0;
+  max-width: none;
+}
+.feature-card.has-flyer .record-body {
+  padding: 32px 36px;
+  max-width: 760px;
+}
+@media (max-width: 720px) {
+  .feature-card.has-flyer {
+    grid-template-columns: 1fr;
+  }
+  .feature-card.has-flyer .record-media {
+    justify-self: center;
+    width: 100%;
+    max-width: 260px;
+  }
+  .feature-card.has-flyer .record-body {
+    padding: 24px;
   }
 }
