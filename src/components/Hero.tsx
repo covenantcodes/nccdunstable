@@ -13,7 +13,7 @@ const slides = [
   {
     image: "/images/slides/21.jpg",
     title: "Join Us in Worship",
-    subtitle: "Sundays at 9:00 AM",
+    subtitle: "Sundays at 10:00 AM",
   },
   {
     image: "/images/slides/31.jpg",
