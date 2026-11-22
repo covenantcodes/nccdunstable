@@ -13,7 +13,8 @@ service cloud.firestore {
     function validContent() {
       return request.resource.data.keys().hasAll(['title', 'description', 'createdAt'])
         && request.resource.data.keys().hasOnly([
-          'title', 'description', 'date', 'speaker', 'imageUrl', 'videoUrl', 'createdAt'
+          'title', 'description', 'date', 'speaker', 'imageUrl', 'videoUrl', 'createdAt',
+          'time', 'recurrence', 'weekday', 'weekOfMonth'
         ])
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
@@ -22,6 +23,10 @@ service cloud.firestore {
         && request.resource.data.description.size() <= 5000
         && request.resource.data.createdAt is timestamp
         && (!('date' in request.resource.data) || request.resource.data.date is string)
+        && (!('time' in request.resource.data) || request.resource.data.time is string)
+        && (!('recurrence' in request.resource.data) || request.resource.data.recurrence in ['none', 'weekly', 'monthly'])
+        && (!('weekday' in request.resource.data) || (request.resource.data.weekday is int && request.resource.data.weekday >= 0 && request.resource.data.weekday <= 6))
+        && (!('weekOfMonth' in request.resource.data) || request.resource.data.weekOfMonth in [-1, 1, 2, 3, 4])
         && (!('speaker' in request.resource.data) || request.resource.data.speaker is string)
         && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl is string)
         && (!('videoUrl' in request.resource.data) || (request.resource.data.videoUrl is string && request.resource.data.videoUrl.size() <= 300));

@@ -134,9 +134,9 @@ textarea:focus-visible {
   color: white;
 }
 .home-hero {
-  min-height: min(820px, 100svh);
-  height: min(820px, 100svh);
-  min-height: 680px;
+  height: 100vh;
+  height: 100svh;
+  min-height: 560px;
   position: relative;
   overflow: hidden;
   color: #fff;
@@ -557,6 +557,9 @@ h2 em {
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
+.feature-grid-two {
+  grid-template-columns: repeat(2, 1fr);
+}
 .feature-card {
   background: #fff;
   padding: 32px;
@@ -812,12 +815,21 @@ h2 em {
   font-size: 13px;
   line-height: 1.5;
 }
-.record-image {
-  width: 100%;
-  height: 160px;
-  object-fit: cover;
+.record-image,
+.feature-card > .video-embed {
+  align-self: stretch;
+  width: calc(100% + 64px);
+  max-width: none;
   margin: -32px -32px 24px;
-  max-width: calc(100% + 64px);
+  aspect-ratio: 16 / 9;
+}
+.record-image {
+  height: auto;
+  object-fit: cover;
+  display: block;
+}
+.feature-card > .video-embed {
+  border-radius: 0;
 }
 .contact-layout,
 .give-layout {
@@ -955,9 +967,6 @@ h2 em {
 }
 .footer-contact .socials {
   margin-top: 2px;
-}
-.placeholder {
-  color: #f3c976 !important;
 }
 .socials {
   display: flex;
@@ -1694,4 +1703,354 @@ button.dash-stat:hover {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.contact-info > p a,
+.notice a {
+  color: var(--blue);
+  font-weight: 500;
+}
+.contact-info > p a:hover,
+.notice a:hover {
+  text-decoration: underline;
+}
+.sermon-teaser h2.sermon-title {
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sermon-teaser .sermon-meta {
+  margin: 0 0 14px;
+  color: #bfdbfe;
+  font-size: 14px;
+}
+.sermon-teaser .sermon-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sermon-visual.has-video {
+  padding: 40px max(28px, calc((100vw - 1184px) / 2)) 40px 40px;
+  background: #16306f;
+}
+.sermon-visual.has-video .video-embed {
+  margin: 0;
+  max-width: 600px;
+  border-radius: 6px;
+}
+.sermon-visual.has-image {
+  padding: 0;
+  overflow: hidden;
+}
+.sermon-visual.has-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+@media (max-width: 900px) {
+  .sermon-visual.has-video {
+    padding: 28px 23px;
+  }
+  .sermon-visual.has-image {
+    min-height: 260px;
+  }
+}
+
+.bank-details {
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.bank-details div {
+  display: flex;
+  gap: 0.75rem;
+}
+.bank-details dt {
+  min-width: 6.5rem;
+  opacity: 0.7;
+}
+.bank-details dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Motion ---------- */
+:root {
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Hidden until the scroll-reveal hook animates the element in. */
+[data-rv="hide"] {
+  opacity: 0;
+}
+@keyframes rv-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes page-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.page-fade {
+  animation: page-in 0.5s ease;
+}
+.scroll-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--blue);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: opacity 0.25s;
+}
+.site-header:not(.scrolled) .scroll-progress {
+  opacity: 0;
+}
+
+/* Page headers: staggered text on load */
+.page-intro > :not(h1) {
+  animation: rv-up 1s var(--ease) backwards;
+}
+.page-intro > :nth-child(3) { animation-delay: 0.4s; }
+
+/* Navigation */
+.desktop-nav a:not(.nav-give) {
+  position: relative;
+}
+.desktop-nav a:not(.nav-give)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 1.5px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.45s var(--ease);
+}
+.desktop-nav a:not(.nav-give):hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+.desktop-nav .nav-give {
+  transition: background 0.2s, transform 0.3s var(--ease);
+}
+.desktop-nav .nav-give:hover {
+  transform: translateY(-1px);
+}
+
+/* Hero: parallax is driven from Hero.tsx; the slides just cross-fade. */
+.home-hero-image {
+  inset: -160px 0 0;
+  scale: 1.12;
+  transform: none;
+  transition: scale 9s var(--ease);
+  will-change: transform;
+}
+.home-hero-slide.active .home-hero-image {
+  scale: 1;
+  transform: none;
+}
+.home-hero-slide.active .eyebrow {
+  animation: hero-text-in 1s var(--ease) 0.1s both;
+}
+.home-hero-slide.active .home-hero-content h1 {
+  animation: hero-text-in 1.1s var(--ease) 0.2s both;
+}
+.home-hero-slide.active .home-hero-content p {
+  animation: hero-text-in 1.1s var(--ease) 0.35s both;
+}
+.home-hero-slide.active .home-hero-actions {
+  animation: hero-text-in 1.1s var(--ease) 0.5s both;
+}
+.hero-scroll {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 28px;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #ffffff66;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.4s var(--ease);
+}
+.hero-scroll:hover {
+  background: #ffffff26;
+  transform: translateY(3px);
+}
+.home-hero-dot {
+  transition: width 0.5s var(--ease), background 0.3s;
+}
+.home-hero-dot.active {
+  position: relative;
+  width: 34px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #ffffff59;
+  transform: none;
+}
+.home-hero-dot.active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  transform-origin: left;
+  animation: dot-fill 6s linear forwards;
+}
+@keyframes dot-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Buttons and links */
+.button svg:last-child,
+.inline-link svg,
+.text-link svg {
+  transition: transform 0.4s var(--ease);
+}
+.button:hover svg:last-child,
+.inline-link:hover svg,
+.text-link:hover svg {
+  transform: translateX(4px);
+}
+.button:active {
+  transform: scale(0.98);
+}
+
+/* Cards */
+.feature-card {
+  overflow: hidden;
+  transition: transform 0.5s var(--ease), box-shadow 0.5s var(--ease), border-color 0.4s;
+}
+.feature-card:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 20px 48px #1e3a8a1a;
+}
+.feature-card .record-image {
+  transition: transform 1s var(--ease);
+}
+.feature-card:hover .record-image {
+  transform: scale(1.05);
+}
+.feature-arrow {
+  transition: transform 0.5s var(--ease);
+}
+.feature-card:hover .feature-arrow {
+  transform: translateX(6px);
+}
+.leader-card {
+  transition: transform 0.5s var(--ease), box-shadow 0.5s var(--ease);
+}
+.leader-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 22px 50px #1e3a8a24;
+}
+.leader-card img {
+  transition: transform 1s var(--ease);
+}
+.leader-card:hover img {
+  transform: scale(1.04);
+}
+
+/* Forms */
+.form-card input,
+.form-card textarea {
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.form-card input:focus,
+.form-card textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px #3b82f620;
+  outline: none;
+}
+.socials a {
+  transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.4s var(--ease);
+}
+.socials a:hover {
+  transform: translateY(-3px);
+}
+
+/* Admin dashboard */
+.dash-card,
+.dash-stat,
+.dash-stack > *,
+.dash-head {
+  animation: rv-up 0.6s var(--ease) backwards;
+}
+.dash-stats > :nth-child(2) { animation-delay: 0.06s; }
+.dash-stats > :nth-child(3) { animation-delay: 0.12s; }
+.dash-cols > :nth-child(2) { animation-delay: 0.08s; }
+.dash-stack > :nth-child(2) { animation-delay: 0.05s; }
+.dash-stack > :nth-child(3) { animation-delay: 0.1s; }
+.dash-btn:active {
+  transform: scale(0.97);
+}
+button.dash-stat:hover {
+  transform: translateY(-2px);
+}
+
+/* Line-by-line headlines: each word sits in a mask and rises into place. */
+.sw {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding: 0.24em 0.07em;
+  margin: -0.24em -0.07em;
+}
+.sw-in {
+  display: inline-block;
+}
+[data-lines=""] .sw-in {
+  transform: translateY(118%);
+}
+
+/* Lenis smooth scroll */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-lines=""] .sw-in {
+    transform: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  [data-rv] {
+    opacity: 1 !important;
+  }
 }

@@ -1,14 +1,23 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Facebook, Instagram, Menu, Youtube, X } from "lucide-react";
 import { church, navItems } from "../config";
+import { useScrollReveal } from "../lib/useScrollReveal";
+import { scrollToY } from "../lib/smoothScroll";
 
 export function Header() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const progress = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 24);
-    window.addEventListener("scroll", fn);
+    const fn = () => {
+      setScrolled(window.scrollY > 24);
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (progress.current)
+        progress.current.style.transform = `scaleX(${max > 0 ? Math.min(window.scrollY / max, 1) : 0})`;
+    };
+    fn();
+    window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
   }, []);
   const location = useLocation();
@@ -54,6 +63,7 @@ export function Header() {
           </nav>
         )}
       </div>
+      <div className="scroll-progress" ref={progress} aria-hidden="true" />
     </header>
   );
 }
@@ -61,7 +71,7 @@ export function Header() {
 export function Footer() {
   return (
     <footer className="footer">
-      <div className="footer-grid">
+      <div className="footer-grid" data-stagger="up">
         <div>
           <img
             className="footer-logo"
@@ -72,7 +82,7 @@ export function Footer() {
           <p>
             A place to encounter God, grow in faith, and serve our community.
           </p>
-          <p className="placeholder">
+          <p>
             {church.address}
             <br />
             {church.location}
@@ -137,15 +147,16 @@ export function Footer() {
 }
 export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
+  useScrollReveal();
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    scrollToY(0, true);
   }, [location.pathname]);
 
   return (
     <>
       <Header />
-      {children}
+      <div className="page-fade">{children}</div>
       <Footer />
     </>
   );

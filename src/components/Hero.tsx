@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Play, X } from "lucide-react";
+import { ChevronDown, Play, X } from "lucide-react";
+import { motion, useScroll, useTransform } from "motion/react";
 import { cn } from "../lib/utils";
+import { scrollToY } from "../lib/smoothScroll";
 
 const slides = [
   {
@@ -36,14 +38,17 @@ const youtubeUrl =
 export default function Hero() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showVideo, setShowVideo] = useState(false);
+  const { scrollY } = useScroll();
+  const parallax = useTransform(scrollY, [0, 900], [0, 150]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
+    if (showVideo) return;
+    const timer = window.setTimeout(() => {
       setCurrentSlide((current) => (current + 1) % slides.length);
     }, 6000);
 
-    return () => window.clearInterval(interval);
-  }, []);
+    return () => window.clearTimeout(timer);
+  }, [currentSlide, showVideo]);
 
   useEffect(() => {
     if (!showVideo) return;
@@ -62,9 +67,9 @@ export default function Hero() {
           key={slide.title}
           aria-hidden={currentSlide !== index}
         >
-          <div
+          <motion.div
             className="home-hero-image"
-            style={{ backgroundImage: `url("${slide.image}")` }}
+            style={{ backgroundImage: `url("${slide.image}")`, y: parallax }}
           />
           <div className="home-hero-overlay" />
           <div className="home-hero-content">
@@ -79,6 +84,14 @@ export default function Hero() {
           </div>
         </div>
       ))}
+
+      <button
+        className="hero-scroll"
+        aria-label="Scroll down"
+        onClick={() => scrollToY(window.innerHeight - 88)}
+      >
+        <ChevronDown size={22} />
+      </button>
 
       <div className="home-hero-dots" aria-label="Choose a slide">
         {slides.map((slide, index) => (

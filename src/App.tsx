@@ -10,10 +10,12 @@ import {
   Sermons,
 } from "./pages/PublicPages";
 import { AdminLogin, AdminRoute } from "./pages/AdminPages";
+import { SmoothScroll } from "./components/SmoothScroll";
 
 export default function App() {
   return (
     <BrowserRouter>
+      <SmoothScroll />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />

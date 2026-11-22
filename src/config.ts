@@ -8,6 +8,13 @@ export const church = {
   Sunday: "9:00 AM",
   midweek: "Tuesday Bible Study, 7:00–8:00 PM",
   logo: "/images/ncc-dunstable-logo.png",
+  bank: {
+    name: "Lloyds Bank",
+    accountNumber: "24305160",
+    sortCode: "30-92-77",
+    purpose: "",
+    suggestion: "",
+  },
   socials: [
     {
       name: "Instagram",

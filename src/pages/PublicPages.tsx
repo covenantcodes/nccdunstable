@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { youtubeEmbedUrl } from "../lib/youtube";
+import { SplitText } from "../components/SplitText";
 import { Link } from "react-router-dom";
 import {
   addDoc,
   collection,
   getDocs,
+  limit,
   orderBy,
   query,
   serverTimestamp,
@@ -24,6 +26,15 @@ import {
 } from "lucide-react";
 import { church } from "../config";
 import { db, firebaseConfigured, firebaseSetupMessage } from "../lib/firebase";
+import {
+  describeRecurrence,
+  formatDay,
+  formatTime,
+  isRecurring,
+  nextOccurrence,
+  type Recurrence,
+} from "../lib/recurrence";
+import { usePagedCollection } from "../lib/usePagedCollection";
 import { Layout } from "../components/SiteLayout";
 import { PageIntro, Cta } from "../components/PageSections";
 import Hero from "../components/Hero";
@@ -36,19 +47,19 @@ export function Home() {
       <main>
         <Hero />
         <section className="welcome section">
-          <div className="welcome-art">
+          <div className="welcome-art" data-reveal="left">
             <div className="art-icon">
               <Cross size={38} />
             </div>
             <span>LOVE GOD · LOVE PEOPLE</span>
           </div>
-          <div>
+          <div data-reveal="right">
             <span className="eyebrow">WELCOME TO NCC DUNSTABLE</span>
-            <h2>
+            <h2 data-lines=""><SplitText>
               Faith grows
               <br />
               better <em>together.</em>
-            </h2>
+            </SplitText></h2>
             <p>
               Whether you are exploring faith, returning to church, or looking
               for a church family, there is a warm welcome waiting for you. We
@@ -60,14 +71,14 @@ export function Home() {
             </Link>
           </div>
         </section>
-        <section className="service-band" id="service-times">
+        <section className="service-band" id="service-times" data-stagger="up">
           <div className="service-intro">
             <span className="eyebrow">JOIN US THIS WEEK</span>
-            <h2>
+            <h2 data-lines=""><SplitText>
               Make room for
               <br />
               <em>what matters.</em>
-            </h2>
+            </SplitText></h2>
             <p>Gather with us for worship, prayer, and time together.</p>
           </div>
           <div className="service-detail">
@@ -96,21 +107,21 @@ export function Home() {
           </Link>
         </section>
         <section className="section content-section">
-          <div className="section-heading">
+          <div className="section-heading" data-reveal="up">
             <div>
               <span className="eyebrow">LIFE AT NCC DUNSTABLE</span>
-              <h2>
+              <h2 data-lines=""><SplitText>
                 Find your place
                 <br />
                 <em>to belong.</em>
-              </h2>
+              </SplitText></h2>
             </div>
             <p>
               There are many ways to connect, grow, and take part in church
               life.
             </p>
           </div>
-          <div className="feature-grid">
+          <div className="feature-grid feature-grid-two" data-stagger="up">
             {(
               [
                 {
@@ -148,32 +159,96 @@ export function Home() {
             ))}
           </div>
         </section>
-        <section className="sermon-teaser">
-          <div>
-            <span className="eyebrow">LISTEN AND GROW</span>
-            <h2>
-              Truth for the
-              <br />
-              <em>journey ahead.</em>
-            </h2>
-            <p>
-              Explore messages from our church community. Sermon recordings will
-              appear here as they are added.
-            </p>
-            <Link className="button button-light" to="/sermons">
-              Explore sermons <Play size={16} />
-            </Link>
-          </div>
-          <div className="sermon-visual">
-            <div className="play-circle">
-              <Play fill="currentColor" />
-            </div>
-            <span>MESSAGES · FAITH · LIFE</span>
-          </div>
-        </section>
+        <LatestSermon />
         <Cta />
       </main>
     </Layout>
+  );
+}
+
+function LatestSermon() {
+  const [sermon, setSermon] = useState<RecordItem | null>(null);
+  useEffect(() => {
+    if (!db) return;
+    let active = true;
+    getDocs(
+      query(collection(db, "sermons"), orderBy("createdAt", "desc"), limit(1)),
+    )
+      .then((snapshot) => {
+        const first = snapshot.docs[0];
+        if (active && first)
+          setSermon({ id: first.id, ...first.data() } as RecordItem);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+  const embed = youtubeEmbedUrl(sermon?.videoUrl);
+  const posted = sermon?.date ? new Date(sermon.date) : null;
+  const dateLabel =
+    posted && !Number.isNaN(posted.getTime())
+      ? posted.toLocaleDateString("en-GB", { dateStyle: "long" })
+      : sermon?.date;
+  return (
+    <section className="sermon-teaser" data-stagger="up">
+      <div>
+        {sermon ? (
+          <>
+            <span className="eyebrow">LATEST SERMON</span>
+            <h2 data-lines="" className="sermon-title"><SplitText>{sermon.title || "Latest message"}</SplitText></h2>
+            <p className="sermon-meta">
+              {[dateLabel, sermon.speaker && `With ${sermon.speaker}`]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            {sermon.description && (
+              <p className="sermon-excerpt">{sermon.description}</p>
+            )}
+            <Link className="button button-light" to="/sermons">
+              More sermons <Play size={16} />
+            </Link>
+          </>
+        ) : (
+          <>
+            <span className="eyebrow">LISTEN AND GROW</span>
+            <h2 data-lines=""><SplitText>
+              Truth for the
+              <br />
+              <em>journey ahead.</em>
+            </SplitText></h2>
+            <p>Explore Bible teaching and messages from our church community.</p>
+            <Link className="button button-light" to="/sermons">
+              Explore sermons <Play size={16} />
+            </Link>
+          </>
+        )}
+      </div>
+      {embed ? (
+        <div className="sermon-visual has-video">
+          <div className="video-embed">
+            <iframe
+              src={embed}
+              title={sermon?.title || "Latest sermon"}
+              loading="lazy"
+              allow="encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      ) : sermon?.imageUrl ? (
+        <div className="sermon-visual has-image">
+          <img src={sermon.imageUrl} alt="" />
+        </div>
+      ) : (
+        <div className="sermon-visual">
+          <div className="play-circle">
+            <Play fill="currentColor" />
+          </div>
+          <span>MESSAGES · FAITH · LIFE</span>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -185,14 +260,14 @@ export function About() {
         title="A family of faith in Dunstable."
         text="New Covenant Church Dunstable is a welcoming Christian community seeking to know Jesus and make his love known."
       />
-      <section className="section about-body">
+      <section className="section about-body" data-stagger="up">
         <div>
           <span className="eyebrow">WHO WE ARE</span>
-          <h2>
+          <h2 data-lines=""><SplitText>
             Rooted in Jesus.
             <br />
             <em>Open to everyone.</em>
-          </h2>
+          </SplitText></h2>
         </div>
         <div>
           <p>
@@ -202,9 +277,9 @@ export function About() {
             can encounter God and build meaningful relationships.
           </p>
           <p>
-            Our local gathering is taking shape in Dunstable. We look forward to
-            sharing more about our story, leadership, and community as details
-            are confirmed.
+            We meet for worship every Sunday at {church.Sunday} and for Bible
+            study on Tuesday evenings. Come as you are, say hello, and meet the
+            family.
           </p>
           <Link className="inline-link" to="/contact">
             Come and meet us <ArrowRight size={16} />
@@ -212,11 +287,11 @@ export function About() {
         </div>
       </section>
       <section className="leaders-section" aria-labelledby="leaders-title">
-        <div className="leaders-heading">
+        <div className="leaders-heading" data-reveal="up">
           <span className="eyebrow">LEADERSHIP</span>
-          <h2 id="leaders-title">Our Leaders</h2>
+          <h2 data-lines="" id="leaders-title"><SplitText>Our Leaders</SplitText></h2>
         </div>
-        <div className="leaders-grid">
+        <div className="leaders-grid" data-stagger="up">
           <article className="leader-card">
             <img
               src="/images/lead.png"
@@ -246,7 +321,7 @@ export function About() {
           </article>
         </div>
       </section>
-      <section className="values">
+      <section className="values" data-stagger="up">
         <div className="value">
           <Cross />
           <h3>Jesus at the centre</h3>
@@ -276,6 +351,10 @@ type RecordItem = {
   speaker?: string;
   imageUrl?: string;
   videoUrl?: string;
+  time?: string;
+  recurrence?: Recurrence;
+  weekday?: number;
+  weekOfMonth?: number;
 };
 function CollectionPage({
   name,
@@ -288,33 +367,15 @@ function CollectionPage({
   text: string;
   icon: IconComponent;
 }) {
-  const [items, setItems] = useState<RecordItem[]>([]);
-  const [state, setState] = useState<"loading" | "ready" | "error" | "setup">(
-    firebaseConfigured ? "loading" : "setup",
-  );
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (!db) return;
-    let active = true;
-    getDocs(query(collection(db, collectionName), orderBy("createdAt", "desc")))
-      .then((s) => {
-        if (active) {
-          setItems(
-            s.docs.map((d) => ({ id: d.id, ...d.data() }) as RecordItem),
-          );
-          setState("ready");
-        }
-      })
-      .catch((e) => {
-        if (active) {
-          setError(e instanceof Error ? e.message : "Could not load content.");
-          setState("error");
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [collectionName]);
+  const { items, loading, loadingMore, hasMore, error, loadMore } =
+    usePagedCollection<RecordItem>(collectionName);
+  const state: "loading" | "ready" | "error" | "setup" = !firebaseConfigured
+    ? "setup"
+    : loading
+      ? "loading"
+      : error && !items.length
+        ? "error"
+        : "ready";
   return (
     <Layout>
       <PageIntro eyebrow="CHURCH LIFE" title={name} text={text} />
@@ -322,9 +383,9 @@ function CollectionPage({
         <div className="section-heading">
           <div>
             <span className="eyebrow">NCC DUNSTABLE</span>
-            <h2>
+            <h2 data-lines=""><SplitText>
               {name}, <em>together.</em>
-            </h2>
+            </SplitText></h2>
           </div>
         </div>
         {state === "loading" && (
@@ -347,7 +408,7 @@ function CollectionPage({
           </div>
         )}
         {items.length > 0 && (
-          <div className="feature-grid">
+          <div className="feature-grid" data-stagger="up">
             {items.map((item) => (
               <article className="feature-card" key={item.id}>
                 {youtubeEmbedUrl(item.videoUrl) ? (
@@ -367,11 +428,43 @@ function CollectionPage({
                 )}
                 <Icon size={25} />
                 <h3>{item.title || "Untitled"}</h3>
-                {item.date && <small>{item.date}</small>}
+                {isRecurring(item) ? (
+                  <>
+                    <small>
+                      <b>{describeRecurrence(item)}</b>
+                      {item.time && ` · ${formatTime(item.time)}`}
+                    </small>
+                    {nextOccurrence(item) && (
+                      <small>Next: {formatDay(nextOccurrence(item)!)}</small>
+                    )}
+                  </>
+                ) : (
+                  (item.date || item.time) && (
+                    <small>
+                      {[item.date, formatTime(item.time)]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                  )
+                )}
                 <p>{item.description}</p>
                 {item.speaker && <small>With {item.speaker}</small>}
               </article>
             ))}
+          </div>
+        )}
+        {state === "ready" && error && (
+          <p className="state-error">We could not load more: {error}</p>
+        )}
+        {hasMore && (
+          <div className="load-more">
+            <button
+              className="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Loading…" : "Load more"}
+            </button>
           </div>
         )}
       </section>
@@ -422,7 +515,8 @@ export function Contact() {
       setError(firebaseSetupMessage);
       return;
     }
-    const data = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const data = new FormData(form);
     setBusy(true);
     try {
       await addDoc(collection(db, "messages"), {
@@ -434,7 +528,7 @@ export function Contact() {
         status: "new",
       });
       setStatus("Thank you. Your message has been sent to the church team.");
-      e.currentTarget.reset();
+      form.reset();
     } catch (err) {
       setError(
         err instanceof Error
@@ -452,17 +546,18 @@ export function Contact() {
         title="We would love to hear from you."
         text="Planning a visit, asking a question, or looking for prayer? Send us a message."
       />
-      <section className="section contact-layout">
+      <section className="section contact-layout" data-stagger="up">
         <div className="contact-info">
           <span className="eyebrow">GET IN TOUCH</span>
-          <h2>
+          <h2 data-lines=""><SplitText>
             Let's start
             <br />
             <em>a conversation.</em>
-          </h2>
+          </SplitText></h2>
           <p>
-            Our contact details are being confirmed. You can still send a
-            message here and we will be in touch.
+            Send us a message using the form, or reach us directly on{" "}
+            <a href={`tel:${church.phone}`}>{church.phone}</a> or at{" "}
+            <a href={`mailto:${church.email}`}>{church.email}</a>.
           </p>
           <div className="contact-detail">
             <MapPin />
@@ -535,7 +630,8 @@ export function Give() {
       setError(firebaseSetupMessage);
       return;
     }
-    const d = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const d = new FormData(form);
     setBusy(true);
     try {
       await addDoc(collection(db, "donations"), {
@@ -550,7 +646,7 @@ export function Give() {
       setStatus(
         "Your giving intention has been recorded. No payment was taken.",
       );
-      e.currentTarget.reset();
+      form.reset();
     } catch (err) {
       setError(
         err instanceof Error
@@ -568,27 +664,38 @@ export function Give() {
         title="Generosity makes a difference."
         text="Thank you for being part of what God is doing through the church and in our community."
       />
-      <section className="section give-layout">
+      <section className="section give-layout" data-stagger="up">
         <div>
           <span className="eyebrow">GIVING AT NCC DUNSTABLE</span>
-          <h2>
+          <h2 data-lines=""><SplitText>
             Thank you for
             <br />
             <em>your generosity.</em>
-          </h2>
+          </SplitText></h2>
           <p>
-            Giving details for NCC Dunstable are being arranged. No online
-            payment provider is connected yet, so this page will not take
-            payments.
+            Online card payments are not available yet, so this page does not
+            take payments. You can give by bank transfer using the details
+            below, and optionally let the church team know using the form.
           </p>
           <div className="notice">
             <Heart />
             <div>
-              <b>Payment setup pending</b>
-              <p>
-                Bank transfer and payment provider instructions will be added
-                once confirmed by the church.
-              </p>
+              <b>Give by bank transfer</b>
+              <p>{church.bank.purpose}</p>
+              <dl className="bank-details">
+                <div>
+                  <dt>Bank</dt>
+                  <dd>{church.bank.name}</dd>
+                </div>
+                <div>
+                  <dt>Account no.</dt>
+                  <dd>{church.bank.accountNumber}</dd>
+                </div>
+                <div>
+                  <dt>Sort code</dt>
+                  <dd>{church.bank.sortCode}</dd>
+                </div>
+              </dl>
             </div>
           </div>
         </div>

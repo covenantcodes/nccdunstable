@@ -1,14 +1,22 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
-import { addDoc, collection, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, doc, updateDoc, type Timestamp } from "firebase/firestore";
+import { addDoc, collection, deleteField, getDoc, serverTimestamp, setDoc, doc, updateDoc, type Timestamp } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { ArrowRight, BookOpen, CalendarDays, Check, ExternalLink, HandCoins, LayoutDashboard, LogOut, Mail, Pencil, Plus, Users, type LucideIcon } from "lucide-react";
 import { church } from "../config";
 import { youtubeEmbedUrl } from "../lib/youtube";
+import {
+  describeRecurrence,
+  isRecurring,
+  type Recurrence,
+  WEEKDAYS,
+  WEEK_OF_MONTH,
+} from "../lib/recurrence";
+import { usePagedCollection, type PagedCollection } from "../lib/usePagedCollection";
 import { auth, db, firebaseConfigured, firebaseSetupMessage, storage } from "../lib/firebase";
 
-type RecordItem = { id: string; title?: string; description?: string; date?: string; speaker?: string; imageUrl?: string; videoUrl?: string };
+type RecordItem = { id: string; title?: string; description?: string; date?: string; speaker?: string; imageUrl?: string; videoUrl?: string; time?: string; recurrence?: Recurrence; weekday?: number; weekOfMonth?: number };
 type ContactMessage = {
   id: string;
   name?: string;
@@ -166,98 +174,94 @@ export function AdminLogin() {
     </div>
   );
 }
+const ADMIN_PAGE_SIZE = 10;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // matches storage.rules
+
+function LoadMore({ hasMore, loading, onClick }: { hasMore: boolean; loading: boolean; onClick: () => void }) {
+  if (!hasMore) return null;
+  return (
+    <div className="load-more">
+      <button className="dash-btn" onClick={onClick} disabled={loading}>
+        {loading ? "Loading…" : "Load more"}
+      </button>
+    </div>
+  );
+}
+/**
+ * Schedule fields for an event. When editing, unused fields are deleted so
+ * switching an event back to "does not repeat" clears the old pattern;
+ * deleteField() is not allowed with addDoc, so new events just omit them.
+ */
+function eventScheduleFields(
+  recurrence: Recurrence,
+  time: string,
+  weekday: number,
+  weekOfMonth: number,
+  editing: boolean,
+) {
+  const unset = editing ? deleteField() : undefined;
+  const fields: Record<string, unknown> = { recurrence };
+  const set = (key: string, value: unknown, use: boolean) => {
+    if (use) fields[key] = value;
+    else if (unset) fields[key] = unset;
+  };
+  set("time", time, Boolean(time));
+  set("weekday", weekday, recurrence !== "none");
+  set("weekOfMonth", weekOfMonth, recurrence === "monthly");
+  return fields;
+}
 function Dashboard() {
-  const [records, setRecords] = useState<Record<string, RecordItem[]>>({
-    sermons: [],
-    events: [],
-    ministries: [],
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [messages, setMessages] = useState<ContactMessage[]>([]);
-  const [givingIntentions, setGivingIntentions] = useState<GivingIntention[]>([]);
+  const sermons = usePagedCollection<RecordItem>("sermons", ADMIN_PAGE_SIZE);
+  const events = usePagedCollection<RecordItem>("events", ADMIN_PAGE_SIZE);
+  const ministries = usePagedCollection<RecordItem>("ministries", ADMIN_PAGE_SIZE);
+  const messagesPage = usePagedCollection<ContactMessage>("messages", ADMIN_PAGE_SIZE);
+  const givingPage = usePagedCollection<GivingIntention>("donations", ADMIN_PAGE_SIZE);
+  const records: Record<string, PagedCollection<RecordItem>> = { sermons, events, ministries };
+  const messages = messagesPage.items;
+  const givingIntentions = givingPage.items;
+  const loading =
+    sermons.loading || events.loading || ministries.loading || messagesPage.loading || givingPage.loading;
+  const [actionError, setActionError] = useState("");
+  const error =
+    actionError ||
+    (!db
+      ? firebaseSetupMessage
+      : [sermons, events, ministries, messagesPage, givingPage].find((p) => p.error)?.error ?? "");
   const [updatingMessage, setUpdatingMessage] = useState<string | null>(null);
   const [view, setView] = useState<DashView>("overview");
-  useEffect(() => {
-    if (!db) {
-      setLoading(false);
-      setError(firebaseSetupMessage);
-      return;
-    }
-    const firestore = db;
-    const contentRequest = Promise.all(
-      ["sermons", "events", "ministries"].map(async (kind) => {
-        const result = await getDocs(
-          query(collection(firestore, kind), orderBy("createdAt", "desc")),
-        );
-        return [
-          kind,
-          result.docs.map(
-            (entry) => ({ id: entry.id, ...entry.data() }) as RecordItem,
-          ),
-        ] as const;
-      }),
-    );
-    const messagesRequest = getDocs(
-      query(collection(firestore, "messages"), orderBy("createdAt", "desc")),
-    );
-    const givingRequest = getDocs(
-      query(collection(firestore, "donations"), orderBy("createdAt", "desc")),
-    );
-    Promise.all([contentRequest, messagesRequest, givingRequest])
-      .then(([entries, messageSnapshot, givingSnapshot]) => {
-        setRecords(Object.fromEntries(entries));
-        setMessages(
-          messageSnapshot.docs.map(
-            (entry) => ({ id: entry.id, ...entry.data() }) as ContactMessage,
-          ),
-        );
-        setGivingIntentions(
-          givingSnapshot.docs.map(
-            (entry) => ({ id: entry.id, ...entry.data() }) as GivingIntention,
-          ),
-        );
-      })
-      .catch((reason: unknown) =>
-        setError(
-          reason instanceof Error ? reason.message : "Could not load content.",
-        ),
-      )
-      .finally(() => setLoading(false));
-  }, []);
   async function markMessageRead(messageId: string) {
     if (!db) return;
     setUpdatingMessage(messageId);
     try {
       await updateDoc(doc(db, "messages", messageId), { status: "read" });
-      setMessages((current) =>
+      messagesPage.setItems((current) =>
         current.map((message) =>
           message.id === messageId ? { ...message, status: "read" } : message,
         ),
       );
     } catch (reason) {
-      setError(
+      setActionError(
         reason instanceof Error ? reason.message : "Could not update the message.",
       );
     } finally {
       setUpdatingMessage(null);
     }
   }
-  const unreadCount = messages.filter(
-    (message) => message.status !== "read",
-  ).length;
-  const totalContent = Object.values(records).reduce(
-    (total, items) => total + items.length,
-    0,
-  );
+  const loadedUnread = messages.filter((message) => message.status !== "read").length;
+  const unreadCount = loadedUnread;
+  const unreadLabel = `${loadedUnread}${messagesPage.hasMore ? "+" : ""}`;
+  const totalContent =
+    (sermons.total ?? sermons.items.length) +
+    (events.total ?? events.items.length) +
+    (ministries.total ?? ministries.items.length);
   const kinds = ["sermons", "events", "ministries"] as const;
-  const views: { key: DashView; label: string; icon: LucideIcon; count?: number; alert?: boolean }[] = [
+  const views: { key: DashView; label: string; icon: LucideIcon; count?: number | string; alert?: boolean }[] = [
     { key: "overview", label: "Overview", icon: LayoutDashboard },
-    { key: "sermons", label: "Sermons", icon: BookOpen, count: records.sermons.length },
-    { key: "events", label: "Events", icon: CalendarDays, count: records.events.length },
-    { key: "ministries", label: "Ministries", icon: Users, count: records.ministries.length },
-    { key: "messages", label: "Messages", icon: Mail, count: unreadCount, alert: unreadCount > 0 },
-    { key: "giving", label: "Giving", icon: HandCoins, count: givingIntentions.length },
+    { key: "sermons", label: "Sermons", icon: BookOpen, count: sermons.total ?? sermons.items.length },
+    { key: "events", label: "Events", icon: CalendarDays, count: events.total ?? events.items.length },
+    { key: "ministries", label: "Ministries", icon: Users, count: ministries.total ?? ministries.items.length },
+    { key: "messages", label: "Messages", icon: Mail, count: unreadLabel, alert: unreadCount > 0 },
+    { key: "giving", label: "Giving", icon: HandCoins, count: givingPage.total ?? givingIntentions.length },
   ];
   const current = views.find((v) => v.key === view)!;
   const singular = (kind: string) => kind.slice(0, -1);
@@ -307,7 +311,7 @@ function Dashboard() {
   }
 
   function ContentList({ kind }: { kind: (typeof kinds)[number] }) {
-    const items = records[kind];
+    const { items, hasMore, loadingMore, loadMore } = records[kind];
     return (
       <>
         {!loading && items.length === 0 ? (
@@ -329,7 +333,9 @@ function Dashboard() {
                 <div className="dash-list-main">
                   <b>{item.title || "Untitled"}</b>
                   <span>
-                    {[item.date, item.speaker].filter(Boolean).join(" · ") ||
+                    {[isRecurring(item) ? describeRecurrence(item) : item.date, item.speaker]
+                      .filter(Boolean)
+                      .join(" · ") ||
                       (item.description ? item.description.slice(0, 80) : "No details")}
                   </span>
                 </div>
@@ -340,6 +346,7 @@ function Dashboard() {
             ))}
           </ul>
         )}
+        <LoadMore hasMore={hasMore} loading={loadingMore} onClick={loadMore} />
       </>
     );
   }
@@ -405,7 +412,7 @@ function Dashboard() {
             <section className="dash-stats" aria-label="Overview">
               <button className="dash-stat" onClick={() => setView("messages")}>
                 <Mail size={18} />
-                <strong>{loading ? "—" : unreadCount}</strong>
+                <strong>{loading ? "—" : unreadLabel}</strong>
                 <span>Unread messages</span>
               </button>
               <div className="dash-stat">
@@ -415,7 +422,7 @@ function Dashboard() {
               </div>
               <button className="dash-stat" onClick={() => setView("giving")}>
                 <HandCoins size={18} />
-                <strong>{loading ? "—" : givingIntentions.length}</strong>
+                <strong>{loading ? "—" : givingPage.total ?? givingIntentions.length}</strong>
                 <span>Giving intentions</span>
               </button>
             </section>
@@ -475,6 +482,11 @@ function Dashboard() {
             {messages.map((m) => (
               <MessageCard key={m.id} message={m} />
             ))}
+            <LoadMore
+              hasMore={messagesPage.hasMore}
+              loading={messagesPage.loadingMore}
+              onClick={messagesPage.loadMore}
+            />
           </section>
         )}
 
@@ -504,6 +516,11 @@ function Dashboard() {
                 ))}
               </ul>
             )}
+            <LoadMore
+              hasMore={givingPage.hasMore}
+              loading={givingPage.loadingMore}
+              onClick={givingPage.loadMore}
+            />
           </section>
         )}
       </main>
@@ -529,6 +546,7 @@ function ContentEditor() {
     videoUrl: "",
   });
   const [videoInput, setVideoInput] = useState("");
+  const [recurrence, setRecurrence] = useState<Recurrence>("none");
   const edit = Boolean(id);
   const title = type.slice(0, -1);
   useEffect(() => {
@@ -543,6 +561,7 @@ function ContentEditor() {
           const loaded = { id, ...snapshot.data() } as RecordItem;
           setValues(loaded);
           setVideoInput(loaded.videoUrl ?? "");
+          setRecurrence(loaded.recurrence ?? "none");
         }
         else setError("This content item could not be found.");
       })
@@ -577,6 +596,19 @@ function ContentEditor() {
       );
       return;
     }
+    const picked = data.get("image");
+    if (picked instanceof File && picked.size > 0) {
+      if (!picked.type.startsWith("image/")) {
+        setError("The uploaded file must be an image (PNG, JPG, WebP…).");
+        return;
+      }
+      if (picked.size >= MAX_IMAGE_BYTES) {
+        setError(
+          `That image is ${(picked.size / 1024 / 1024).toFixed(1)} MB. Please use one under 10 MB.`,
+        );
+        return;
+      }
+    }
     setBusy(true);
     try {
       const file = data.get("image");
@@ -596,6 +628,15 @@ function ContentEditor() {
         speaker: data.get("speaker"),
         imageUrl,
         ...(type === "sermons" ? { videoUrl } : {}),
+        ...(type === "events"
+          ? eventScheduleFields(
+              recurrence,
+              String(data.get("time") || ""),
+              Number(data.get("weekday")),
+              Number(data.get("weekOfMonth")),
+              Boolean(id),
+            )
+          : {}),
         createdAt: serverTimestamp(),
       };
       if (id) await setDoc(doc(db, type, id), content, { merge: true });
@@ -637,10 +678,55 @@ function ContentEditor() {
                 defaultValue={values.description}
               />
             </label>
+            {type === "events" && (
+              <label>
+                Repeats
+                <select
+                  value={recurrence}
+                  onChange={(e) => setRecurrence(e.target.value as Recurrence)}
+                >
+                  <option value="none">Does not repeat</option>
+                  <option value="weekly">Every week</option>
+                  <option value="monthly">Every month</option>
+                </select>
+              </label>
+            )}
+            {type === "events" && recurrence === "monthly" && (
+              <label>
+                Which week
+                <select name="weekOfMonth" defaultValue={values.weekOfMonth ?? 1}>
+                  {WEEK_OF_MONTH.map(([n, label]) => (
+                    <option key={n} value={n}>
+                      The {label} one
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {type === "events" && recurrence !== "none" && (
+              <label>
+                On
+                <select name="weekday" defaultValue={values.weekday ?? 0}>
+                  {WEEKDAYS.map((day, i) => (
+                    <option key={day} value={i}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
-              Date
+              {type === "events" && recurrence !== "none"
+                ? "Starts from (optional)"
+                : "Date"}
               <input name="date" type="date" defaultValue={values.date} />
             </label>
+            {type === "events" && (
+              <label>
+                Time (optional)
+                <input name="time" type="time" defaultValue={values.time} />
+              </label>
+            )}
             {type === "sermons" && (
               <label>
                 Speaker
