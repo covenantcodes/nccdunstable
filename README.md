@@ -40,7 +40,7 @@ The public client configuration is not a service account credential. Never put p
 
 ## Firestore collections
 
-- `sermons`: title, description, date, speaker, optional `imageUrl`, and `createdAt`.
+- `sermons`: title, description, date, speaker, optional `videoUrl` (YouTube link, embedded on the Sermons page), optional `imageUrl`, and `createdAt`.
 - `events`: title, description, date, optional `imageUrl`, and `createdAt`.
 - `ministries`: title, description, optional `imageUrl`, and `createdAt`.
 - `messages`: name, email, subject, message, createdAt, status.

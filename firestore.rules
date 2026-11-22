@@ -13,7 +13,7 @@ service cloud.firestore {
     function validContent() {
       return request.resource.data.keys().hasAll(['title', 'description', 'createdAt'])
         && request.resource.data.keys().hasOnly([
-          'title', 'description', 'date', 'speaker', 'imageUrl', 'createdAt'
+          'title', 'description', 'date', 'speaker', 'imageUrl', 'videoUrl', 'createdAt'
         ])
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
@@ -23,7 +23,8 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp
         && (!('date' in request.resource.data) || request.resource.data.date is string)
         && (!('speaker' in request.resource.data) || request.resource.data.speaker is string)
-        && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl is string);
+        && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl is string)
+        && (!('videoUrl' in request.resource.data) || (request.resource.data.videoUrl is string && request.resource.data.videoUrl.size() <= 300));
     }
 
     function validMessage() {

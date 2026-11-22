@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { youtubeEmbedUrl } from "../lib/youtube";
 import { Link } from "react-router-dom";
 import {
   addDoc,
@@ -274,6 +275,7 @@ type RecordItem = {
   date?: string;
   speaker?: string;
   imageUrl?: string;
+  videoUrl?: string;
 };
 function CollectionPage({
   name,
@@ -348,8 +350,20 @@ function CollectionPage({
           <div className="feature-grid">
             {items.map((item) => (
               <article className="feature-card" key={item.id}>
-                {item.imageUrl && (
-                  <img className="record-image" src={item.imageUrl} alt="" />
+                {youtubeEmbedUrl(item.videoUrl) ? (
+                  <div className="video-embed">
+                    <iframe
+                      src={youtubeEmbedUrl(item.videoUrl)!}
+                      title={item.title || "Sermon video"}
+                      loading="lazy"
+                      allow="encrypted-media; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  item.imageUrl && (
+                    <img className="record-image" src={item.imageUrl} alt="" />
+                  )
                 )}
                 <Icon size={25} />
                 <h3>{item.title || "Untitled"}</h3>
